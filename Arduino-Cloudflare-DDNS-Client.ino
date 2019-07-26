@@ -3,6 +3,7 @@
 #include <ESP8266WebServer.h>
 #include <WiFiClientSecure.h>
 #include <ArduinoOTA.h>
+#include <EEPROM.h>
 #include <time.h>
 #include "Secrets.h"
 
@@ -32,10 +33,19 @@ String oldIP;
 String logMsg;
 String logTime;
 uint apiPort = 443;
+int errorCount = 0;
+uint eepromAddr = 0;
 bool apiIsTLS = true;
 unsigned long lastMillis = 0;
 String apiHost = "api.cloudflare.com";
 String apiURL = "/client/v4/zones/" + String(ZONE_ID) + "/dns_records/" + String(REC_ID);
+typedef struct { 
+  uint firstOctet;
+  uint secondOctet;
+  uint thirdOctet;
+  uint fourthOctet;
+} eepromData;
+eepromData IPData;
 
 HTTPClient http;
 WiFiClient wClient;
@@ -68,6 +78,12 @@ void setup() {
   server.begin();
   ArduinoOTA.setHostname(OTA_HOSTNAME);
   ArduinoOTA.begin();
+  EEPROM.begin(512);
+  EEPROM.get(eepromAddr, IPData);
+  oldIP = String(IPData.firstOctet) + "." + String(IPData.secondOctet) + "." + String(IPData.thirdOctet) + "." + String(IPData.fourthOctet);
+  log("I/system: old IP address read from EEPROM => " + oldIP);
+  checkDNS();
+  lastMillis = millis();
 }
 
 
@@ -80,6 +96,9 @@ void loop() {
       setupWifi();
       checkDNS();
     }
+  }
+  if (errorCount > 3) {
+    ESP.restart();
   }
   server.handleClient();
   ArduinoOTA.handle();
@@ -113,9 +132,9 @@ void setupTime() {
 void checkDNS() {
   http.begin(wClient, IP_URL);
   int httpCode = http.GET();
+  newIP = http.getString();
+  newIP.trim();
   if (httpCode == HTTP_CODE_OK) {
-    newIP = http.getString();
-    newIP.trim();
     if (newIP == oldIP) {
       log("I/checkr: IP unchanged! current IP => " + newIP);
     } else {
@@ -123,7 +142,9 @@ void checkDNS() {
       updateDNS();
     }
   } else {
-    log("E/checkr: " + http.getString());
+    errorCount++;
+    log("E/checkr: HTTP status code => " + String(httpCode));
+    log("E/checkr: HTTP response => " + newIP);
     http.end();
   }
   http.end();
@@ -145,10 +166,18 @@ void updateDNS() {
     log("I/updatr: HTTP status code => " + String(httpCode));
     log("I/updatr: HTTP response => " + httpResponse);
     oldIP = newIP;
+    int firstDot = newIP.indexOf(".");
+    int secondDot = newIP.indexOf(".", firstDot + 1);
+    int thirdDot = newIP.indexOf(".", secondDot + 1);
+    IPData.firstOctet = newIP.substring(0, firstDot).toInt();
+    IPData.secondOctet = newIP.substring(firstDot + 1, secondDot).toInt();
+    IPData.thirdOctet = newIP.substring(secondDot + 1, thirdDot).toInt();
+    IPData.fourthOctet = newIP.substring(thirdDot + 1, newIP.length()).toInt();
+    EEPROM.put(eepromAddr, IPData);
+    EEPROM.commit();
   } else {
     log("E/updatr: HTTP status code => " + String(httpCode));
     log("E/updatr: HTTP response => " + httpResponse);
-    log("E/updatr: Error!");
   }
 }
 
