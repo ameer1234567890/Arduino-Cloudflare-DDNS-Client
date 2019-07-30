@@ -37,6 +37,7 @@ uint apiPort = 443;
 int errorCount = 0;
 uint eepromAddr = 0;
 bool apiIsTLS = true;
+bool lineFeed = true;
 unsigned long lastMillis = 0;
 String apiHost = "api.cloudflare.com";
 String apiURL = "/client/v4/zones/" + String(ZONE_ID) + "/dns_records/" + String(REC_ID);
@@ -69,7 +70,6 @@ void setup() {
   });
   server.on("/log", []() {
     server.send(200, "text/plain", logMsg);
-    log("I/server: served /log to " + server.client().remoteIP().toString());
   });
   server.on("/reboot", []() {
     server.send(200, "text/plain", "rebooting");
@@ -105,14 +105,33 @@ void loop() {
   ArduinoOTA.handle();
 }
 
-
 void log(String msg) {
+  if (!lineFeed) {
+    lineFeed = true;
+    logMsg = logMsg + "\n";
+  }
   time_t now = time(0);
   logTime = ctime(&now);
   logTime.trim();
   logMsg = logMsg + "[" + logTime + "] ";
   logMsg = logMsg + msg + "\n";
   Serial.println(msg);
+}
+
+
+void logContinuous(String msg) {
+  if (lineFeed) {
+    lineFeed = false;
+    time_t now = time(0);
+    logTime = ctime(&now);
+    logTime.trim();
+    logMsg = logMsg + "[" + logTime + "] ";
+    logMsg = logMsg + "I/checkr: IP unchanged" + msg;
+    Serial.print("I/checkr: IP unchanged" + msg);
+  } else {
+    logMsg = logMsg + msg;
+    Serial.print(msg);
+  }
 }
 
 
@@ -137,7 +156,7 @@ void checkDNS() {
   newIP.trim();
   if (httpCode == HTTP_CODE_OK) {
     if (newIP == oldIP) {
-      log("I/checkr: IP unchanged! current IP => " + newIP);
+      logContinuous(".");
     } else {
       log("I/checkr: IP changed! current IP => " + newIP + ". updating DNS...");
       updateDNS();
