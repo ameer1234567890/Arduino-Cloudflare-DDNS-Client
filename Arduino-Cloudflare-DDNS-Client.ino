@@ -16,6 +16,7 @@
 #define SUBDOMAIN "hello" // subdomain in: hello.example.com
 #define ZONE_ID "" // refer README on how to obtain this value
 #define REC_ID "" // refer README on how to obtain this value
+#define IFTTT_URL "http://maker.ifttt.com/trigger/ip_changed/with/key/xxxxxxxxxxxxx" // IFTTT webhook url
 #endif
 
 /* Configurable variables */
@@ -145,7 +146,6 @@ void checkDNS() {
     errorCount++;
     log("E/checkr: HTTP status code => " + String(httpCode));
     log("E/checkr: HTTP response => " + newIP);
-    http.end();
   }
   http.end();
 }
@@ -175,10 +175,23 @@ void updateDNS() {
     IPData.fourthOctet = newIP.substring(thirdDot + 1, newIP.length()).toInt();
     EEPROM.put(eepromAddr, IPData);
     EEPROM.commit();
+    notify();
   } else {
     log("E/updatr: HTTP status code => " + String(httpCode));
     log("E/updatr: HTTP response => " + httpResponse);
   }
+}
+
+
+void notify() {
+  http.begin(wClient, IFTTT_URL);
+  int httpCode = http.GET();
+  if (httpCode == HTTP_CODE_OK) {
+    log("I/notify: notified via IFTTT");
+  } else {
+    log("E/notify: notifying via IFTTT failed");
+  }
+  http.end();
 }
 
 
