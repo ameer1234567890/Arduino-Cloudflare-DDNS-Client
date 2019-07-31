@@ -119,18 +119,18 @@ void log(String msg) {
 }
 
 
-void logContinuous(String msg) {
+void logContinuous(String msg, String progressChar) {
   if (lineFeed) {
     lineFeed = false;
     time_t now = time(0);
     logTime = ctime(&now);
     logTime.trim();
     logMsg = logMsg + "[" + logTime + "] ";
-    logMsg = logMsg + "I/checkr: IP unchanged" + msg;
-    Serial.print("I/checkr: IP unchanged" + msg);
+    logMsg = logMsg + msg + progressChar;
+    Serial.print(msg + progressChar);
   } else {
-    logMsg = logMsg + msg;
-    Serial.print(msg);
+    logMsg = logMsg + progressChar;
+    Serial.print(progressChar);
   }
 }
 
@@ -156,7 +156,7 @@ void checkDNS() {
   newIP.trim();
   if (httpCode == HTTP_CODE_OK) {
     if (newIP == oldIP) {
-      logContinuous(".");
+      logContinuous("I/checkr: IP unchanged", ".");
     } else {
       log("I/checkr: IP changed! current IP => " + newIP + ". updating DNS...");
       updateDNS();
