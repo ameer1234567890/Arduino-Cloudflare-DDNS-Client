@@ -3,7 +3,6 @@
 #include <ESP8266WebServer.h>
 #include <WiFiClientSecure.h>
 #include <ArduinoOTA.h>
-#include <EEPROM.h>
 #include <time.h>
 #include "Secrets.h"
 
