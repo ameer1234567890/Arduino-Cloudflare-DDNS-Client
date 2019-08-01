@@ -14,8 +14,6 @@
 #define EMAIL "your.email@gmail.com" // email address registered at Cloudflare
 #define TOKEN "cloudflare-api-token" // Global API key from https://dash.cloudflare.com/profile
 #define SUBDOMAIN "hello" // subdomain in: hello.example.com
-#define ZONE_ID "" // refer README on how to obtain this value
-#define REC_ID "" // refer README on how to obtain this value
 #define IFTTT_URL "http://maker.ifttt.com/trigger/ip_changed/with/key/xxxxxxxxxxxxx" // IFTTT webhook url
 #endif
 
@@ -26,12 +24,16 @@ const int DST = 0;
 const int LED_PIN = 0;
 const int TIMEZONE = 5;
 const int INTERVAL = 1000 * 60; // 60 seconds
+const int INTERVAL_INIT = 1000 * 5; // 5 seconds
 const String IP_URL = "http://ipv4.icanhazip.com"; // URL to get public IP address
 
 /* Do not change these unless you know what you are doing */
 String newIP;
 String oldIP;
+String recID;
+String zoneID;
 String logMsg;
+String apiURL;
 String logTime;
 uint apiPort = 443;
 int errorCount = 0;
@@ -39,15 +41,8 @@ uint eepromAddr = 0;
 bool apiIsTLS = true;
 bool lineFeed = true;
 unsigned long lastMillis = 0;
+unsigned long lastMillisInit = 0;
 String apiHost = "api.cloudflare.com";
-String apiURL = "/client/v4/zones/" + String(ZONE_ID) + "/dns_records/" + String(REC_ID);
-typedef struct { 
-  uint firstOctet;
-  uint secondOctet;
-  uint thirdOctet;
-  uint fourthOctet;
-} eepromData;
-eepromData IPData;
 
 HTTPClient http;
 WiFiClient wClient;
@@ -79,25 +74,38 @@ void setup() {
   server.begin();
   ArduinoOTA.setHostname(OTA_HOSTNAME);
   ArduinoOTA.begin();
-  EEPROM.begin(512);
-  EEPROM.get(eepromAddr, IPData);
-  oldIP = String(IPData.firstOctet) + "." + String(IPData.secondOctet) + "." + String(IPData.thirdOctet) + "." + String(IPData.fourthOctet);
-  log("I/system: old IP address read from EEPROM => " + oldIP);
-  checkDNS();
-  lastMillis = millis();
 }
 
 
 void loop() {
-  if (millis() > lastMillis + INTERVAL) {
-    lastMillis = millis();
-    if(WiFi.status() == WL_CONNECTED) {
-      checkDNS();
-    } else {
-      setupWifi();
-      checkDNS();
+  if (zoneID == "") {
+    if (millis() > lastMillisInit + INTERVAL_INIT) {
+      lastMillisInit = millis();
+      lastMillis = millis();
+      if (!getZoneID()) {
+        log("E/checkr: unable to obtain ZONE_ID");
+        errorCount++;
+      }
+    }
+  } else {
+    if (recID == "") {
+      if (millis() > lastMillisInit + INTERVAL_INIT) {
+        lastMillisInit = millis();
+        lastMillis = millis();
+        if (!getRecID()) {
+          log("E/checkr: unable to obtain REC_ID");
+          errorCount++;
+        } else {
+          runProc();
+        }
+      }
     }
   }
+
+  if (millis() > lastMillis + INTERVAL) {
+    runProc();
+  }
+
   if (errorCount > 3) {
     ESP.restart();
   }
@@ -105,10 +113,28 @@ void loop() {
   ArduinoOTA.handle();
 }
 
+
+void runProc() {
+  lastMillis = millis();
+  if (zoneID != "" && recID != "" && oldIP != "") {
+    apiURL = "/client/v4/zones/" + zoneID + "/dns_records/" + recID;
+    if (WiFi.status() == WL_CONNECTED) {
+      checkDNS();
+    } else {
+      setupWifi();
+      checkDNS();
+    }
+  } else {
+    log("E/system: something went wrong! zoneID => " + zoneID + " recID => " + recID + " oldIP => " + oldIP);
+  }
+}
+
+
 void log(String msg) {
   if (!lineFeed) {
     lineFeed = true;
     logMsg = logMsg + "\n";
+    Serial.println();
   }
   time_t now = time(0);
   logTime = ctime(&now);
@@ -185,19 +211,60 @@ void updateDNS() {
     log("I/updatr: HTTP status code => " + String(httpCode));
     log("I/updatr: HTTP response => " + httpResponse);
     oldIP = newIP;
-    int firstDot = newIP.indexOf(".");
-    int secondDot = newIP.indexOf(".", firstDot + 1);
-    int thirdDot = newIP.indexOf(".", secondDot + 1);
-    IPData.firstOctet = newIP.substring(0, firstDot).toInt();
-    IPData.secondOctet = newIP.substring(firstDot + 1, secondDot).toInt();
-    IPData.thirdOctet = newIP.substring(secondDot + 1, thirdDot).toInt();
-    IPData.fourthOctet = newIP.substring(thirdDot + 1, newIP.length()).toInt();
-    EEPROM.put(eepromAddr, IPData);
-    EEPROM.commit();
     notify();
   } else {
     log("E/updatr: HTTP status code => " + String(httpCode));
     log("E/updatr: HTTP response => " + httpResponse);
+  }
+}
+
+
+bool getZoneID() {
+  String url = "/client/v4/zones?name=" + String(DOMAIN);
+  wClientSecure.setInsecure(); // until we have better handling of a trust chain on small devices
+  http.begin(wClientSecure, apiHost, apiPort, url, apiIsTLS);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("X-Auth-Key", TOKEN);
+  http.addHeader("X-Auth-Email", EMAIL);
+  int httpCode = http.GET();
+  String httpResponse = http.getString();
+  http.end();
+  if (httpCode == HTTP_CODE_OK) {
+    int startIndex = httpResponse.indexOf("id") + 5;
+    int endIndex = httpResponse.indexOf("\"", startIndex);
+    zoneID = httpResponse.substring(startIndex, endIndex);
+    return true;
+  } else {
+    return false;
+  }
+}
+
+
+bool getRecID() {
+  String url = "/client/v4/zones/" + zoneID + "/dns_records";
+  wClientSecure.setInsecure(); // until we have better handling of a trust chain on small devices
+  http.begin(wClientSecure, apiHost, apiPort, url, apiIsTLS);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("X-Auth-Key", TOKEN);
+  http.addHeader("X-Auth-Email", EMAIL);
+  int httpCode = http.GET();
+  String httpResponse = http.getString();
+  http.end();
+  if (httpCode == HTTP_CODE_OK) {
+    int recIndex = httpResponse.indexOf("type\":\"A\",\"name\":\"" + String(SUBDOMAIN) + "." + String(DOMAIN) + "\"");
+    int startIndex = httpResponse.substring(0, recIndex).lastIndexOf("id") - 2;
+    int endIndex = httpResponse.indexOf("}", recIndex) + 2;
+    httpResponse = httpResponse.substring(startIndex, endIndex);
+    startIndex = httpResponse.indexOf("\"content\"") + 11;
+    endIndex = httpResponse.indexOf("\"", httpResponse.indexOf("\"content\"") + 11);
+    oldIP = httpResponse.substring(startIndex, endIndex);
+    log("I/system: old IP obtained from clouflare API => " + oldIP);
+    startIndex = httpResponse.indexOf("id") + 5;
+    endIndex = httpResponse.indexOf("\"", startIndex);
+    recID = httpResponse.substring(startIndex, endIndex);
+    return true;
+  } else {
+    return false;
   }
 }
 
