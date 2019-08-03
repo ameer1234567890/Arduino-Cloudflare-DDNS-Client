@@ -84,6 +84,8 @@ void loop() {
       if (!getZoneID()) {
         log("E/checkr: unable to obtain ZONE_ID");
         errorCount++;
+      } else {
+        errorCount = 0;
       }
     }
   } else {
@@ -95,6 +97,7 @@ void loop() {
           log("E/checkr: unable to obtain REC_ID");
           errorCount++;
         } else {
+          errorCount = 0;
           runProc();
         }
       }
@@ -180,6 +183,7 @@ void checkDNS() {
   newIP = http.getString();
   newIP.trim();
   if (httpCode == HTTP_CODE_OK) {
+    errorCount = 0;
     if (newIP == oldIP) {
       logContinuous("I/checkr: IP unchanged", ".");
     } else {
