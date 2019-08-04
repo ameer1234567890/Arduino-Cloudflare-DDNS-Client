@@ -182,6 +182,10 @@ void checkDNS() {
   int httpCode = http.GET();
   newIP = http.getString();
   newIP.trim();
+  newIP.replace("<", "&lt;");
+  newIP.replace(">", "&gt;");
+  newIP.replace("\n", "");
+  newIP.replace("\r", "");
   if (httpCode == HTTP_CODE_OK) {
     errorCount = 0;
     if (newIP == oldIP) {
