@@ -196,8 +196,7 @@ void checkDNS() {
     }
   } else {
     errorCount++;
-    log("E/checkr: HTTP status code => " + String(httpCode));
-    log("E/checkr: HTTP response => " + newIP);
+    log("E/checkr: HTTP status code => " + String(httpCode) + ". HTTP response => " + newIP);
   }
   http.end();
 }
@@ -215,13 +214,11 @@ void updateDNS() {
   String httpResponse = http.getString();
   http.end();
   if (httpCode == HTTP_CODE_OK) {
-    log("I/updatr: HTTP status code => " + String(httpCode));
-    log("I/updatr: HTTP response => " + httpResponse);
+    log("I/updatr: HTTP status code => " + String(httpCode) + ". HTTP response => " + httpResponse);
     oldIP = newIP;
     notify();
   } else {
-    log("E/updatr: HTTP status code => " + String(httpCode));
-    log("E/updatr: HTTP response => " + httpResponse);
+    log("I/updatr: HTTP status code => " + String(httpCode) + ". HTTP response => " + httpResponse);
   }
 }
 
