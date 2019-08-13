@@ -56,14 +56,19 @@ void setup() {
   setupWifi();
   setupTime();
   server.on("/", []() {
-    server.send(200, "text/html", "\
-      <a href=\"/log\">/log</a><br>\
-      <a href=\"/reboot\">/reboot</a><br>\
-    ");
+    server.send(200, "text/html", \
+      "<a href=\"/log\">/log</a><br>" \
+      "<a href=\"/checkdns\">/checkdns</a><br>" \
+      "<a href=\"/reboot\">/reboot</a><br>" \
+    );
     log("I/server: served / to " + server.client().remoteIP().toString());
   });
   server.on("/log", []() {
     server.send(200, "text/plain", logMsg);
+  });
+  server.on("/checkdns", []() {
+    server.send(200, "text/plain", "running DNS check");
+    runProc();
   });
   server.on("/reboot", []() {
     server.send(200, "text/plain", "rebooting");
