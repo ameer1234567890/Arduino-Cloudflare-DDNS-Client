@@ -1,0 +1,8 @@
+http://ipv4.icanhazip.com
+http://ident.me/
+http://ipv4.plain-text-ip.com/
+http://api.ipify.org/
+http://bot.whatismyipaddress.com/
+http://api.ip.sb/ip
+http://ifconfig.co/ip
+http://wtfismyip.com/text

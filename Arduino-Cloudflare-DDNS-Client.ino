@@ -10,8 +10,8 @@
 #ifndef WIFI_SSID
 #define WIFI_SSID "xxxxxxxxxx"
 #define WIFI_PASSWORD "xxxxxxxxxx"
-#define EMAIL "your.email@gmail.com" // email address registered at Cloudflare
-#define TOKEN "cloudflare-api-token" // Global API key from https://dash.cloudflare.com/profile
+#define TOKEN "cloudflare-api-token" // API token from https://dash.cloudflare.com/profile/api-tokens [All zones - Zone:Read, DNS:Edit]
+#define DOMAIN "example.com" // domain name (without subdomain)
 #define SUBDOMAIN "hello" // subdomain in: hello.example.com
 #define IFTTT_URL "http://maker.ifttt.com/trigger/ip_changed/with/key/xxxxxxxxxxxxx" // IFTTT webhook url
 #endif
@@ -24,7 +24,8 @@ const int LED_PIN = 0;
 const int TIMEZONE = 5;
 const int INTERVAL = 1000 * 60; // 60 seconds
 const int INTERVAL_INIT = 1000 * 5; // 5 seconds
-const String IP_URL = "http://ipv4.icanhazip.com"; // URL to get public IP address
+// const String IP_URL = "http://ipv4.icanhazip.com"; // URL to get public IP address
+const String IP_URL = "http://api.ip.sb/ip"; // URL to get public IP address
 
 /* Do not change these unless you know what you are doing */
 String newIP;
@@ -113,7 +114,7 @@ void loop() {
     runProc();
   }
 
-  if (errorCount > 3) {
+  if (errorCount > 5) {
     ESP.restart();
   }
   server.handleClient();
@@ -216,8 +217,7 @@ void updateDNS() {
   wClientSecure.setInsecure(); // until we have better handling of a trust chain on small devices
   http.begin(wClientSecure, apiHost, apiPort, apiURL, apiIsTLS);
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("X-Auth-Key", TOKEN);
-  http.addHeader("X-Auth-Email", EMAIL);
+  http.addHeader("Authorization", "Bearer " + String(TOKEN));
   http.addHeader("Content-Length", String(reqData.length()));
   int httpCode = http.PUT(reqData);
   String httpResponse = http.getString();
@@ -241,8 +241,7 @@ bool getZoneID() {
   wClientSecure.setInsecure(); // until we have better handling of a trust chain on small devices
   http.begin(wClientSecure, apiHost, apiPort, url, apiIsTLS);
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("X-Auth-Key", TOKEN);
-  http.addHeader("X-Auth-Email", EMAIL);
+  http.addHeader("Authorization", "Bearer " + String(TOKEN));
   int httpCode = http.GET();
   String httpResponse = http.getString();
   http.end();
@@ -262,8 +261,7 @@ bool getRecID() {
   wClientSecure.setInsecure(); // until we have better handling of a trust chain on small devices
   http.begin(wClientSecure, apiHost, apiPort, url, apiIsTLS);
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("X-Auth-Key", TOKEN);
-  http.addHeader("X-Auth-Email", EMAIL);
+  http.addHeader("Authorization", "Bearer " + String(TOKEN));
   int httpCode = http.GET();
   String httpResponse = http.getString();
   http.end();
