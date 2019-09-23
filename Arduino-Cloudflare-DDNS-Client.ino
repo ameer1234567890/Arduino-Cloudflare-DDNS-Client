@@ -24,8 +24,7 @@ const int LED_PIN = 0;
 const int TIMEZONE = 5;
 const int INTERVAL = 1000 * 60; // 60 seconds
 const int INTERVAL_INIT = 1000 * 5; // 5 seconds
-// const String IP_URL = "http://ipv4.icanhazip.com"; // URL to get public IP address
-const String IP_URL = "http://api.ip.sb/ip"; // URL to get public IP address
+const String IP_URL = "http://ident.me/"; // URL to get public IP address
 
 /* Do not change these unless you know what you are doing */
 String newIP;

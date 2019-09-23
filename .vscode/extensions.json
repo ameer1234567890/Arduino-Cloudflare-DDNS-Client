@@ -1,7 +1,6 @@
 {
     "recommendations": [
         "vsciot-vscode.vscode-arduino",
-        "bierner.markdown-preview-github-styles",
         "ms-vscode.cpptools",
         "austin.code-gnu-global"
     ]
