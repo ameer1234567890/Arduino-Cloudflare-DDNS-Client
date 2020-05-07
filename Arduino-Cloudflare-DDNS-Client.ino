@@ -13,7 +13,8 @@
 #define TOKEN "cloudflare-api-token" // API token from https://dash.cloudflare.com/profile/api-tokens [All zones - Zone:Read, DNS:Edit]
 #define DOMAIN "example.com" // domain name (without subdomain)
 #define SUBDOMAIN "hello" // subdomain in: hello.example.com
-#define IFTTT_URL "http://maker.ifttt.com/trigger/ip_changed/with/key/xxxxxxxxxxxxx" // IFTTT webhook url
+#define IFTTT_NOTIFY_URL "http://maker.ifttt.com/trigger/ip_changed/with/key/xxxxxxxxxxxxx" // IFTTT webhook notify url
+#define IFTTT_ERROR_URL "http://maker.ifttt.com/trigger/ddns_error/with/key/xxxxxxxxxxxxx" // IFTTT webhook error url
 #endif
 
 /* Configurable variables */
@@ -34,11 +35,13 @@ String zoneID;
 String logMsg;
 String apiURL;
 String logTime;
+String lastError;
 uint apiPort = 443;
 int errorCount = 0;
 uint eepromAddr = 0;
 bool apiIsTLS = true;
 bool lineFeed = true;
+bool errorNotified = false;
 unsigned long lastMillis = 0;
 unsigned long lastMillisInit = 0;
 String apiHost = "api.cloudflare.com";
@@ -87,7 +90,8 @@ void loop() {
       lastMillisInit = millis();
       lastMillis = millis();
       if (!getZoneID()) {
-        log("E/checkr: unable to obtain ZONE_ID");
+        lastError = "unable to obtain ZONE_ID";
+        log("E/checkr: " + lastError);
         errorCount++;
       } else {
         errorCount = 0;
@@ -99,7 +103,8 @@ void loop() {
         lastMillisInit = millis();
         lastMillis = millis();
         if (!getRecID()) {
-          log("E/checkr: unable to obtain REC_ID");
+          lastError = "unable to obtain REC_ID";
+          log("E/checkr: " + lastError);
           errorCount++;
         } else {
           errorCount = 0;
@@ -113,7 +118,11 @@ void loop() {
     runProc();
   }
 
-  if (errorCount > 5) {
+  if (errorCount > 5 && !errorNotified) {
+    errorNotified = true;
+    error(lastError);
+  }
+  if (errorCount > 20) {
     ESP.restart();
   }
   server.handleClient();
@@ -132,7 +141,8 @@ void runProc() {
       checkDNS();
     }
   } else {
-    log("E/system: something went wrong! zoneID => " + zoneID + " recID => " + recID + " oldIP => " + oldIP);
+    lastError = "something went wrong! zoneID => " + zoneID + " recID => " + recID + " oldIP => " + oldIP;
+    log("E/system: " + lastError);
   }
 }
 
@@ -202,9 +212,11 @@ void checkDNS() {
   } else {
     errorCount++;
     if (httpCode < 0) {
-      log("E/checkr: HTTP error code => " + String(httpCode) + ". HTTP error => " + http.errorToString(httpCode));
+      lastError = "HTTP error code => " + String(httpCode) + ". HTTP error => " + http.errorToString(httpCode);
+      log("E/checkr: " + lastError);
     } else {
-      log("E/checkr: HTTP status code => " + String(httpCode) + ". HTTP response => " + newIP);
+      lastError = "HTTP status code => " + String(httpCode) + ". HTTP response => " + newIP;
+      log("E/checkr: " + lastError);
     }
   }
   http.end();
@@ -227,9 +239,11 @@ void updateDNS() {
     notify();
   } else {
     if (httpCode < 0) {
-      log("E/checkr: HTTP error code => " + String(httpCode) + ". HTTP error => " + http.errorToString(httpCode));
+      lastError = "HTTP error code => " + String(httpCode) + ". HTTP error => " + http.errorToString(httpCode);
+      log("E/checkr: " + lastError);
     } else {
-      log("E/checkr: HTTP status code => " + String(httpCode) + ". HTTP response => " + newIP);
+      lastError = "HTTP status code => " + String(httpCode) + ". HTTP response => " + newIP;
+      log("E/checkr: " + lastError);
     }
   }
 }
@@ -265,15 +279,15 @@ bool getRecID() {
   String httpResponse = http.getString();
   http.end();
   if (httpCode == HTTP_CODE_OK) {
-    int recIndex = httpResponse.indexOf("type\":\"A\",\"name\":\"" + String(SUBDOMAIN) + "." + String(DOMAIN) + "\"");
-    int startIndex = httpResponse.substring(0, recIndex).lastIndexOf("id") - 2;
+    int recIndex = httpResponse.indexOf("\"name\": \"" + String(SUBDOMAIN) +"." + String(DOMAIN) + "\",\n      \"type\": \"A\",");
+    int startIndex = httpResponse.substring(0, recIndex).lastIndexOf("\"id\"") - 8;
     int endIndex = httpResponse.indexOf("}", recIndex) + 2;
     httpResponse = httpResponse.substring(startIndex, endIndex);
-    startIndex = httpResponse.indexOf("\"content\"") + 11;
-    endIndex = httpResponse.indexOf("\"", httpResponse.indexOf("\"content\"") + 11);
+    startIndex = httpResponse.indexOf("\"content\"") + 12;
+    endIndex = httpResponse.indexOf("\"", startIndex);
     oldIP = httpResponse.substring(startIndex, endIndex);
     log("I/system: old IP obtained from clouflare API => " + oldIP);
-    startIndex = httpResponse.indexOf("id") + 5;
+    startIndex = httpResponse.indexOf("\"id\"") + 7;
     endIndex = httpResponse.indexOf("\"", startIndex);
     recID = httpResponse.substring(startIndex, endIndex);
     return true;
@@ -284,12 +298,25 @@ bool getRecID() {
 
 
 void notify() {
-  http.begin(wClient, IFTTT_URL);
+  http.begin(wClient, IFTTT_NOTIFY_URL);
   int httpCode = http.GET();
   if (httpCode == HTTP_CODE_OK) {
     log("I/notify: notified via IFTTT");
   } else {
-    log("E/notify: notifying via IFTTT failed");
+    log("E/notify: notification via IFTTT failed");
+  }
+  http.end();
+}
+
+
+void error(String message) {
+  message.replace(" ", "+");
+  http.begin(wClient, String(IFTTT_ERROR_URL) + "?value1=" + message);
+  int httpCode = http.GET();
+  if (httpCode == HTTP_CODE_OK) {
+    log("I/error : error notified via IFTTT");
+  } else {
+    log("E/error : error notification via IFTTT failed " + http.getString());
   }
   http.end();
 }
