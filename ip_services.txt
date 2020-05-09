@@ -6,3 +6,4 @@ http://api.ipify.org/
 http://bot.whatismyipaddress.com/
 http://ifconfig.co/ip
 http://wtfismyip.com/text
+http://ifconfig.me/ip

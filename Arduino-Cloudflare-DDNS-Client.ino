@@ -25,7 +25,7 @@ const int LED_PIN = 0;
 const int TIMEZONE = 5;
 const int INTERVAL = 1000 * 60; // 60 seconds
 const int INTERVAL_INIT = 1000 * 5; // 5 seconds
-const String IP_URL = "http://ident.me/"; // URL to get public IP address
+const String IP_URL = "http://ifconfig.me/ip"; // URL to get public IP address
 
 /* Do not change these unless you know what you are doing */
 String newIP;
@@ -33,22 +33,16 @@ String oldIP;
 String recID;
 String zoneID;
 String logMsg;
-String apiURL;
 String logTime;
 String lastError;
-uint apiPort = 443;
 int errorCount = 0;
 uint eepromAddr = 0;
-bool apiIsTLS = true;
 bool lineFeed = true;
 bool errorNotified = false;
 unsigned long lastMillis = 0;
 unsigned long lastMillisInit = 0;
-String apiHost = "api.cloudflare.com";
 
 HTTPClient http;
-WiFiClient wClient;
-WiFiClientSecure wClientSecure;
 ESP8266WebServer server(SERVER_PORT);
 
 
@@ -133,7 +127,6 @@ void loop() {
 void runProc() {
   lastMillis = millis();
   if (zoneID != "" && recID != "" && oldIP != "") {
-    apiURL = "/client/v4/zones/" + zoneID + "/dns_records/" + recID;
     if (WiFi.status() == WL_CONNECTED) {
       checkDNS();
     } else {
@@ -193,6 +186,7 @@ void setupTime() {
 
 
 void checkDNS() {
+  WiFiClient wClient;
   http.begin(wClient, IP_URL);
   int httpCode = http.GET();
   newIP = http.getString();
@@ -225,14 +219,19 @@ void checkDNS() {
 
 void updateDNS() {
   String reqData = "{\"type\":\"A\",\"name\":\"" + String(SUBDOMAIN) + "\",\"content\":\"" + newIP + "\",\"proxied\":false}";
+  String url = "https://api.cloudflare.com/client/v4/zones/" + zoneID + "/dns_records/" + recID;
+  String host = url.substring(url.indexOf("https://") + 8, url.indexOf("/", url.indexOf("https://") + 8));
+  String path = url.substring(url.indexOf(host) + host.length(), url.length());
+  WiFiClientSecure wClientSecure;
   wClientSecure.setInsecure(); // until we have better handling of a trust chain on small devices
-  http.begin(wClientSecure, apiHost, apiPort, apiURL, apiIsTLS);
+  http.begin(wClientSecure, host, 443, path, true);
   http.addHeader("Content-Type", "application/json");
   http.addHeader("Authorization", "Bearer " + String(TOKEN));
   http.addHeader("Content-Length", String(reqData.length()));
   int httpCode = http.PUT(reqData);
   String httpResponse = http.getString();
   http.end();
+  httpResponse.replace("\n", "");
   if (httpCode == HTTP_CODE_OK) {
     log("I/updatr: HTTP status code => " + String(httpCode) + ". HTTP response => " + httpResponse);
     oldIP = newIP;
@@ -242,7 +241,7 @@ void updateDNS() {
       lastError = "HTTP error code => " + String(httpCode) + ". HTTP error => " + http.errorToString(httpCode);
       log("E/checkr: " + lastError);
     } else {
-      lastError = "HTTP status code => " + String(httpCode) + ". HTTP response => " + newIP;
+      lastError = "HTTP status code => " + String(httpCode) + ". HTTP response => " + httpResponse;
       log("E/checkr: " + lastError);
     }
   }
@@ -250,9 +249,12 @@ void updateDNS() {
 
 
 bool getZoneID() {
-  String url = "/client/v4/zones?name=" + String(DOMAIN);
+  String url = "https://api.cloudflare.com/client/v4/zones?name=" + String(DOMAIN);
+  String host = url.substring(url.indexOf("https://") + 8, url.indexOf("/", url.indexOf("https://") + 8));
+  String path = url.substring(url.indexOf(host) + host.length(), url.length());
+  WiFiClientSecure wClientSecure;
   wClientSecure.setInsecure(); // until we have better handling of a trust chain on small devices
-  http.begin(wClientSecure, apiHost, apiPort, url, apiIsTLS);
+  http.begin(wClientSecure, host, 443, path, true);
   http.addHeader("Content-Type", "application/json");
   http.addHeader("Authorization", "Bearer " + String(TOKEN));
   int httpCode = http.GET();
@@ -270,9 +272,12 @@ bool getZoneID() {
 
 
 bool getRecID() {
-  String url = "/client/v4/zones/" + zoneID + "/dns_records";
+  String url = "https://api.cloudflare.com/client/v4/zones/" + zoneID + "/dns_records";
+  String host = url.substring(url.indexOf("https://") + 8, url.indexOf("/", url.indexOf("https://") + 8));
+  String path = url.substring(url.indexOf(host) + host.length(), url.length());
+  WiFiClientSecure wClientSecure;
   wClientSecure.setInsecure(); // until we have better handling of a trust chain on small devices
-  http.begin(wClientSecure, apiHost, apiPort, url, apiIsTLS);
+  http.begin(wClientSecure, host, 443, path, true);
   http.addHeader("Content-Type", "application/json");
   http.addHeader("Authorization", "Bearer " + String(TOKEN));
   int httpCode = http.GET();
@@ -298,12 +303,13 @@ bool getRecID() {
 
 
 void notify() {
-  http.begin(wClient, IFTTT_NOTIFY_URL);
+  WiFiClient wClient;
+  http.begin(wClient, String(IFTTT_NOTIFY_URL) + "?value1=" + newIP);
   int httpCode = http.GET();
   if (httpCode == HTTP_CODE_OK) {
     log("I/notify: notified via IFTTT");
   } else {
-    log("E/notify: notification via IFTTT failed");
+    log("E/notify: notification via IFTTT failed. HTTP status code => " + String(httpCode));
   }
   http.end();
 }
@@ -311,12 +317,13 @@ void notify() {
 
 void error(String message) {
   message.replace(" ", "+");
+  WiFiClient wClient;
   http.begin(wClient, String(IFTTT_ERROR_URL) + "?value1=" + message);
   int httpCode = http.GET();
   if (httpCode == HTTP_CODE_OK) {
     log("I/error : error notified via IFTTT");
   } else {
-    log("E/error : error notification via IFTTT failed " + http.getString());
+    log("E/notify: notification via IFTTT failed. HTTP status code => " + String(httpCode));
   }
   http.end();
 }
