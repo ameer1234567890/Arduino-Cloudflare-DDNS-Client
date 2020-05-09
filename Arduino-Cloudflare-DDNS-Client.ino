@@ -260,7 +260,7 @@ bool getZoneID() {
   int httpCode = http.GET();
   String httpResponse = http.getString();
   http.end();
-  if (httpCode == HTTP_CODE_OK) {
+  if (httpCode == HTTP_CODE_OK && httpResponse != "") {
     int startIndex = httpResponse.indexOf("id") + 5;
     int endIndex = httpResponse.indexOf("\"", startIndex);
     zoneID = httpResponse.substring(startIndex, endIndex);
@@ -283,7 +283,7 @@ bool getRecID() {
   int httpCode = http.GET();
   String httpResponse = http.getString();
   http.end();
-  if (httpCode == HTTP_CODE_OK) {
+  if (httpCode == HTTP_CODE_OK && httpResponse != "") {
     int recIndex = httpResponse.indexOf("\"name\": \"" + String(SUBDOMAIN) +"." + String(DOMAIN) + "\",\n      \"type\": \"A\",");
     int startIndex = httpResponse.substring(0, recIndex).lastIndexOf("\"id\"") - 8;
     int endIndex = httpResponse.indexOf("}", recIndex) + 2;
