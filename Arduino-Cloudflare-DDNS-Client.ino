@@ -197,7 +197,7 @@ void checkDNS() {
   newIP.replace("\n", "");
   newIP.replace("\r", "");
   if (httpCode == HTTP_CODE_OK) {
-    if (isValidIPAddress(newIP)) {
+    if (isValidIPAddress(newIP) && !isLocalIP(newIP)) {
       errorCount = 0;
       errorNotified = false;
       if (newIP == oldIP) {
@@ -392,6 +392,21 @@ boolean isValidNumber(String str){
     return false;
   }
 } 
+
+
+bool isLocalIP(String ip) {
+  // This function complements isValidIPAddress() function, and as such, does not validate IP addresses.
+  // It should be used with isValidIPAddress() function in order to ensure that the provided IP address is valid.
+  int firstDot = ip.indexOf(".");
+  int secondDot = ip.indexOf(".", firstDot + 1);
+  int firstOctet = ip.substring(0, firstDot).toInt();
+  int secondOctet = ip.substring(firstDot + 1, secondDot).toInt();
+  if (firstOctet < 1 || firstOctet == 10 || firstOctet == 127) return true;
+  if (firstOctet == 192 && secondOctet == 168) return true;
+  if (firstOctet == 172 && secondOctet > 15 && secondOctet < 32) return true;
+  if (firstOctet == 100 && secondOctet > 63 && secondOctet < 128) return true;
+  return false;
+}
 
 
 void setupWifi() {
