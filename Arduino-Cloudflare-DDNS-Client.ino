@@ -36,7 +36,6 @@ String logMsg;
 String logTime;
 String lastError;
 int errorCount = 0;
-uint eepromAddr = 0;
 bool lineFeed = true;
 bool errorNotified = false;
 unsigned long lastMillis = 0;
@@ -89,6 +88,7 @@ void loop() {
         errorCount++;
       } else {
         errorCount = 0;
+        errorNotified = false;
       }
     }
   } else {
@@ -102,6 +102,7 @@ void loop() {
           errorCount++;
         } else {
           errorCount = 0;
+          errorNotified = false;
           runProc();
         }
       }
@@ -196,12 +197,19 @@ void checkDNS() {
   newIP.replace("\n", "");
   newIP.replace("\r", "");
   if (httpCode == HTTP_CODE_OK) {
-    errorCount = 0;
-    if (newIP == oldIP) {
-      logContinuous("I/checkr: IP unchanged", ".");
+    if (isValidIPAddress(newIP)) {
+      errorCount = 0;
+      errorNotified = false;
+      if (newIP == oldIP) {
+        logContinuous("I/checkr: IP unchanged", ".");
+      } else {
+        log("I/checkr: IP changed! current IP => " + newIP + ". updating DNS...");
+        updateDNS();
+      }
     } else {
-      log("I/checkr: IP changed! current IP => " + newIP + ". updating DNS...");
-      updateDNS();
+      errorCount++;
+      lastError = "invalid IP address obtained => " + newIP;
+      log("E/checkr: " + lastError);
     }
   } else {
     errorCount++;
@@ -327,6 +335,63 @@ void error(String message) {
   }
   http.end();
 }
+
+
+bool isValidIPAddress(String ip) {
+  int firstDot = ip.indexOf(".");
+  if(firstDot == -1) {
+    return false;
+  } else {
+    if (!isValidNumber(ip.substring(0, firstDot))) {
+      return false;
+    } else {
+      if(ip.substring(0, firstDot).toInt() > 255) {
+        return false;
+      }
+    }
+  }
+  int secondDot = ip.indexOf(".", firstDot + 1);
+  if(secondDot == -1) {
+    return false;
+  } else {
+    if (!isValidNumber(ip.substring(firstDot + 1, secondDot))) {
+      return false;
+    } else {
+      if(ip.substring(firstDot + 1, secondDot).toInt() > 255) {
+        return false;
+      }
+    }
+  }
+  int thirdDot = ip.indexOf(".", secondDot + 1);
+  if(thirdDot == -1) {
+    return false;
+  } else {
+    if (!isValidNumber(ip.substring(secondDot + 1, thirdDot))) {
+      return false;
+    } else {
+      if(ip.substring(secondDot + 1, thirdDot).toInt() > 255) {
+        return false;
+      }
+    }
+  }
+  if (!isValidNumber(ip.substring(thirdDot + 1, ip.length()))) {
+    return false;
+  } else {
+    if(ip.substring(thirdDot + 1, ip.length()).toInt() > 255) {
+      return false;
+    }
+  }
+  return true;
+}
+
+
+boolean isValidNumber(String str){
+  if (String(str.toInt()) == str) {
+    return true;
+  } else {
+    return false;
+  }
+} 
 
 
 void setupWifi() {
