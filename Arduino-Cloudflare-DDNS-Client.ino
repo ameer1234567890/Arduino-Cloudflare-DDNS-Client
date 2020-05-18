@@ -2,6 +2,7 @@
 #include <ESP8266HTTPClient.h>
 #include <ESP8266WebServer.h>
 #include <WiFiClientSecure.h>
+#include <TelnetStream.h>
 #include <ArduinoOTA.h>
 #include <time.h>
 #include "Secrets.h"
@@ -47,6 +48,7 @@ ESP8266WebServer server(SERVER_PORT);
 
 void setup() {
   Serial.begin(115200);
+  TelnetStream.begin();
   log("I/system: startup");
   pinMode(LED_PIN, OUTPUT);
   setupWifi();
@@ -122,6 +124,23 @@ void loop() {
   }
   server.handleClient();
   ArduinoOTA.handle();
+
+  switch (TelnetStream.read()) {
+    case 'R':
+      TelnetStream.println("Rebooting device");
+      TelnetStream.stop();
+      delay(100);
+      ESP.reset();
+      break;
+    case 'C':
+      TelnetStream.println("Closing telnet connection");
+      TelnetStream.flush();
+      TelnetStream.stop();
+      break;
+    case 'D':
+      runProc();
+      break;
+  }
 }
 
 
@@ -146,10 +165,12 @@ void log(String msg) {
     lineFeed = true;
     logMsg = logMsg + "\n";
     Serial.println();
+    TelnetStream.println();
   }
   time_t now = time(0);
   logTime = ctime(&now);
   logTime.trim();
+  TelnetStream.println("[" + logTime + "] " + msg);
   logMsg = logMsg + "[" + logTime + "] ";
   logMsg = logMsg + msg + "\n";
   Serial.println(msg);
@@ -165,9 +186,11 @@ void logContinuous(String msg, String progressChar) {
     logMsg = logMsg + "[" + logTime + "] ";
     logMsg = logMsg + msg + progressChar;
     Serial.print(msg + progressChar);
+    TelnetStream.print(msg + progressChar);
   } else {
     logMsg = logMsg + progressChar;
     Serial.print(progressChar);
+    TelnetStream.print(progressChar);
   }
 }
 
