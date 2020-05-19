@@ -23,7 +23,7 @@
 #define OTA_HOSTNAME "DDNSClient"
 const int DST = 0;
 const int LED_PIN = 0;
-const int TIMEZONE = 5;
+const int TIMEZONE = -5;
 const int INTERVAL = 1000 * 60; // 60 seconds
 const int INTERVAL_INIT = 1000 * 5; // 5 seconds
 const String IP_URL = "http://ifconfig.me/ip"; // URL to get public IP address
@@ -186,7 +186,7 @@ void logContinuous(String msg, String progressChar) {
     logMsg = logMsg + "[" + logTime + "] ";
     logMsg = logMsg + msg + progressChar;
     Serial.print(msg + progressChar);
-    TelnetStream.print(msg + progressChar);
+    TelnetStream.print("[" + logTime + "] " + msg + progressChar);
   } else {
     logMsg = logMsg + progressChar;
     Serial.print(progressChar);
@@ -196,7 +196,7 @@ void logContinuous(String msg, String progressChar) {
 
 
 void setupTime() {
-  configTime(TIMEZONE * 3600, DST, "pool.ntp.org", "time.nist.gov");
+  configTime(TIMEZONE * 3600, DST, "0.mv.pool.ntp.org", "pool.ntp.org", "time.nist.gov");
   log("I/time  : waiting for time");
   while (!time(nullptr)) {
     delay(100);
