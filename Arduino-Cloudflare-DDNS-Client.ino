@@ -249,7 +249,7 @@ void checkDNS() {
 
 
 void updateDNS() {
-  String reqData = "{\"type\":\"A\",\"name\":\"" + String(SUBDOMAIN) + "\",\"content\":\"" + newIP + "\",\"proxied\":false}";
+  String reqData = "{\"type\":\"A\",\"name\":\"" + String(SUBDOMAIN) + "\",\"content\":\"" + newIP + "\",\"ttl\":\"1\",\"proxied\":false}";
   String url = "https://api.cloudflare.com/client/v4/zones/" + zoneID + "/dns_records/" + recID;
   String host = url.substring(url.indexOf("https://") + 8, url.indexOf("/", url.indexOf("https://") + 8));
   String path = url.substring(url.indexOf(host) + host.length(), url.length());
@@ -315,15 +315,15 @@ bool getRecID() {
   String httpResponse = http.getString();
   http.end();
   if (httpCode == HTTP_CODE_OK && httpResponse != "") {
-    int recIndex = httpResponse.indexOf("\"name\": \"" + String(SUBDOMAIN) +"." + String(DOMAIN) + "\",\n      \"type\": \"A\",");
-    int startIndex = httpResponse.substring(0, recIndex).lastIndexOf("\"id\"") - 8;
+    int recIndex = httpResponse.indexOf("\"name\":\"" + String(SUBDOMAIN) +"." + String(DOMAIN) + "\",\"type\":\"A\",");
+    int startIndex = httpResponse.substring(0, recIndex).lastIndexOf("\"id\"") - 4;
     int endIndex = httpResponse.indexOf("}", recIndex) + 2;
     httpResponse = httpResponse.substring(startIndex, endIndex);
-    startIndex = httpResponse.indexOf("\"content\"") + 12;
+    startIndex = httpResponse.indexOf("\"content\"") + 11;
     endIndex = httpResponse.indexOf("\"", startIndex);
     oldIP = httpResponse.substring(startIndex, endIndex);
     log("I/system: old IP obtained from clouflare API => " + oldIP);
-    startIndex = httpResponse.indexOf("\"id\"") + 7;
+    startIndex = httpResponse.indexOf("\"id\"") + 6;
     endIndex = httpResponse.indexOf("\"", startIndex);
     recID = httpResponse.substring(startIndex, endIndex);
     return true;
