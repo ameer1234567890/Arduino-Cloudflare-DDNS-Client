@@ -2,7 +2,7 @@
 #include <ESP8266HTTPClient.h>
 #include <ESP8266WebServer.h>
 #include <WiFiClientSecure.h>
-#include <TelnetStream.h>
+#include <TelnetStream.h> // https://github.com/jandrassy/TelnetStream
 #include <ArduinoOTA.h>
 #include <time.h>
 #include "Secrets.h"
