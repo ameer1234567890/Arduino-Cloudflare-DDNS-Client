@@ -90,8 +90,6 @@ void loop() {
       lastMillisInit = millis();
       lastMillis = millis();
       if (!getZoneID()) {
-        lastError = "unable to obtain ZONE_ID";
-        log("E/checkr: " + lastError);
         errorCount++;
       } else {
         errorCount = 0;
@@ -104,8 +102,6 @@ void loop() {
         lastMillisInit = millis();
         lastMillis = millis();
         if (!getRecID()) {
-          lastError = "unable to obtain REC_ID";
-          log("E/checkr: " + lastError);
           errorCount++;
         } else {
           errorCount = 0;
@@ -302,6 +298,12 @@ bool getZoneID() {
     zoneID = httpResponse.substring(startIndex, endIndex);
     return true;
   } else {
+    if (httpCode != HTTP_CODE_OK) {
+      lastError = "invalid http code while retrieving zoneID => " + String(httpCode);
+    } else if (httpResponse == "") {
+      lastError = "empty response from Cloudflare API while retrieving zoneID";
+    }
+    log("E/checkr: " + lastError);
     return false;
   }
 }
@@ -333,6 +335,12 @@ bool getRecID() {
     recID = httpResponse.substring(startIndex, endIndex);
     return true;
   } else {
+    if (httpCode != HTTP_CODE_OK) {
+      lastError = "invalid http code while retrieving recID => " + String(httpCode);
+    } else if (httpResponse == "") {
+      lastError = "empty response from Cloudflare API while retrieving recID";
+    }
+    log("E/checkr: " + lastError);
     return false;
   }
 }
