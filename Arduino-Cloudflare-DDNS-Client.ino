@@ -58,6 +58,11 @@ void setup() {
       "<a href=\"/log\">/log</a><br>" \
       "<a href=\"/checkdns\">/checkdns</a><br>" \
       "<a href=\"/reboot\">/reboot</a><br>" \
+      "<br><p><small>"\
+      "Powered by: <a href=\"https://github.com/ameer1234567890/Arduino-Cloudflare-DDNS-Client\">Arduino-Cloudflare-DDNS-Client</a> | "\
+      "Chip ID: " + String(ESP.getChipId()) + " | " + \
+      "Compiled at: " + __DATE__ + " " + __TIME__ + \
+      "</small></p>"\
     );
     log("I/server: served / to " + server.client().remoteIP().toString());
   });
