@@ -197,7 +197,7 @@ void logContinuous(String msg, String progressChar) {
 
 
 void setupTime() {
-  configTime(TIMEZONE * 3600, DST, "0.mv.pool.ntp.org", "pool.ntp.org", "time.nist.gov");
+  configTime(TIMEZONE * 3600, DST, "pool.ntp.org", "time.nist.gov", "time.google.com");
   log("I/time  : waiting for time");
   while (!time(nullptr)) {
     delay(100);
