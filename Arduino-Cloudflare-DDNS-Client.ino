@@ -86,7 +86,7 @@ void setup() {
 
 void loop() {
   if (zoneID == "") {
-    if (millis() > lastMillisInit + INTERVAL_INIT) {
+    if (millis() - lastMillisInit > INTERVAL_INIT) {
       lastMillisInit = millis();
       lastMillis = millis();
       if (!getZoneID()) {
@@ -98,7 +98,7 @@ void loop() {
     }
   } else {
     if (recID == "") {
-      if (millis() > lastMillisInit + INTERVAL_INIT) {
+      if (millis() - lastMillisInit > INTERVAL_INIT) {
         lastMillisInit = millis();
         lastMillis = millis();
         if (!getRecID()) {
@@ -112,7 +112,7 @@ void loop() {
     }
   }
 
-  if (millis() > lastMillis + INTERVAL) {
+  if (millis() - lastMillis > INTERVAL) {
     runProc();
   }
 
