@@ -131,7 +131,7 @@ void loop() {
       TelnetStream.println("Rebooting device");
       TelnetStream.stop();
       delay(100);
-      ESP.reset();
+      ESP.restart();
       break;
     case 'C':
       TelnetStream.println("Closing telnet connection");
