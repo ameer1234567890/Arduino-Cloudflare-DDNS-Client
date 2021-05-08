@@ -2,7 +2,7 @@
 #include <ESP8266HTTPClient.h>
 #include <ESP8266WebServer.h>
 #include <WiFiClientSecure.h>
-#include <TelnetStream.h> // https://github.com/jandrassy/TelnetStream
+#include <TelnetStream2.h> // https://github.com/ameer1234567890/TelnetStream2
 #include <ArduinoOTA.h>
 #include <time.h>
 #include "Secrets.h"
@@ -14,8 +14,7 @@
 #define TOKEN "cloudflare-api-token" // API token from https://dash.cloudflare.com/profile/api-tokens [All zones - Zone:Read, DNS:Edit]
 #define DOMAIN "example.com" // domain name (without subdomain)
 #define SUBDOMAIN "hello" // subdomain in: hello.example.com
-#define IFTTT_NOTIFY_URL "http://maker.ifttt.com/trigger/ip_changed/with/key/xxxxxxxxxxxxx" // IFTTT webhook notify url
-#define IFTTT_ERROR_URL "http://maker.ifttt.com/trigger/ddns_error/with/key/xxxxxxxxxxxxx" // IFTTT webhook error url
+#define NOTIFY_URL "https://hooks.slack.com/services/TMVF27R8B/BN0K5BWAD/xxxxxxxxxxxxx" // Slack webhook notify url
 #endif
 
 /* Configurable variables */
@@ -48,7 +47,7 @@ ESP8266WebServer server(SERVER_PORT);
 
 void setup() {
   Serial.begin(115200);
-  TelnetStream.begin();
+  TelnetStream2.begin();
   log("I/system: startup");
   pinMode(LED_PIN, OUTPUT);
   setupWifi();
@@ -118,7 +117,7 @@ void loop() {
 
   if (errorCount > 5 && !errorNotified) {
     errorNotified = true;
-    error(lastError);
+    notify(lastError);
   }
   if (errorCount > 20) {
     ESP.restart();
@@ -126,17 +125,17 @@ void loop() {
   server.handleClient();
   ArduinoOTA.handle();
 
-  switch (TelnetStream.read()) {
+  switch (TelnetStream2.read()) {
     case 'R':
-      TelnetStream.println("Rebooting device");
-      TelnetStream.stop();
+      TelnetStream2.println("Rebooting device");
+      TelnetStream2.stop();
       delay(100);
       ESP.restart();
       break;
     case 'C':
-      TelnetStream.println("Closing telnet connection");
-      TelnetStream.flush();
-      TelnetStream.stop();
+      TelnetStream2.println("Closing telnet connection");
+      TelnetStream2.flush();
+      TelnetStream2.stop();
       break;
     case 'D':
       runProc();
@@ -166,12 +165,12 @@ void log(String msg) {
     lineFeed = true;
     logMsg = logMsg + "\n";
     Serial.println();
-    TelnetStream.println();
+    TelnetStream2.println();
   }
   time_t now = time(0);
   logTime = ctime(&now);
   logTime.trim();
-  TelnetStream.println("[" + logTime + "] " + msg);
+  TelnetStream2.println("[" + logTime + "] " + msg);
   logMsg = logMsg + "[" + logTime + "] ";
   logMsg = logMsg + msg + "\n";
   Serial.println(msg);
@@ -187,11 +186,11 @@ void logContinuous(String msg, String progressChar) {
     logMsg = logMsg + "[" + logTime + "] ";
     logMsg = logMsg + msg + progressChar;
     Serial.print(msg + progressChar);
-    TelnetStream.print("[" + logTime + "] " + msg + progressChar);
+    TelnetStream2.print("[" + logTime + "] " + msg + progressChar);
   } else {
     logMsg = logMsg + progressChar;
     Serial.print(progressChar);
-    TelnetStream.print(progressChar);
+    TelnetStream2.print(progressChar);
   }
 }
 
@@ -246,6 +245,7 @@ void checkDNS() {
     }
   }
   http.end();
+  wClient.stop();
 }
 
 
@@ -263,18 +263,20 @@ void updateDNS() {
   int httpCode = http.PUT(reqData);
   String httpResponse = http.getString();
   http.end();
+  wClientSecure.stop();
   httpResponse.replace("\n", "");
   if (httpCode == HTTP_CODE_OK) {
-    log("I/updatr: HTTP status code => " + String(httpCode) + ". HTTP response => " + httpResponse);
+    log("I/updatr: HTTP status code => " + String(httpCode));
     oldIP = newIP;
-    notify();
+    String message = "DNS IP has been changed to " + newIP;
+    notify(message);
   } else {
     if (httpCode < 0) {
       lastError = "HTTP error code => " + String(httpCode) + ". HTTP error => " + http.errorToString(httpCode);
-      log("E/checkr: " + lastError);
+      log("E/updatr: " + lastError);
     } else {
       lastError = "HTTP status code => " + String(httpCode) + ". HTTP response => " + httpResponse;
-      log("E/checkr: " + lastError);
+      log("E/updatr: " + lastError);
     }
   }
 }
@@ -292,6 +294,7 @@ bool getZoneID() {
   int httpCode = http.GET();
   String httpResponse = http.getString();
   http.end();
+  wClientSecure.stop();
   if (httpCode == HTTP_CODE_OK && httpResponse != "") {
     int startIndex = httpResponse.indexOf("id") + 5;
     int endIndex = httpResponse.indexOf("\"", startIndex);
@@ -310,7 +313,7 @@ bool getZoneID() {
 
 
 bool getRecID() {
-  String url = "https://api.cloudflare.com/client/v4/zones/" + zoneID + "/dns_records";
+  String url = "https://api.cloudflare.com/client/v4/zones/" + zoneID + "/dns_records?name=" + String(SUBDOMAIN) + "." + String(DOMAIN);
   String host = url.substring(url.indexOf("https://") + 8, url.indexOf("/", url.indexOf("https://") + 8));
   String path = url.substring(url.indexOf(host) + host.length(), url.length());
   WiFiClientSecure wClientSecure;
@@ -321,6 +324,7 @@ bool getRecID() {
   int httpCode = http.GET();
   String httpResponse = http.getString();
   http.end();
+  wClientSecure.stop();
   if (httpCode == HTTP_CODE_OK && httpResponse != "") {
     int recIndex = httpResponse.indexOf("\"name\":\"" + String(SUBDOMAIN) +"." + String(DOMAIN) + "\",\"type\":\"A\",");
     int startIndex = httpResponse.substring(0, recIndex).lastIndexOf("\"id\"") - 4;
@@ -346,30 +350,30 @@ bool getRecID() {
 }
 
 
-void notify() {
-  WiFiClient wClient;
-  http.begin(wClient, String(IFTTT_NOTIFY_URL) + "?value1=" + newIP);
-  int httpCode = http.GET();
-  if (httpCode == HTTP_CODE_OK) {
-    log("I/notify: notified via IFTTT");
-  } else {
-    log("E/notify: notification via IFTTT failed. HTTP status code => " + String(httpCode));
-  }
+void notify(String message) {
+  String reqData = "{\"channel\": \"#general\", \"username\": \"DDNSClient\", \"text\": \"" + message + "\", \"icon_emoji\": \":slack:\"}";
+  String url = String(NOTIFY_URL);
+  String host = url.substring(url.indexOf("https://") + 8, url.indexOf("/", url.indexOf("https://") + 8));
+  String path = url.substring(url.indexOf(host) + host.length(), url.length());
+  WiFiClientSecure wClientSecure;
+  wClientSecure.setInsecure(); // until we have better handling of a trust chain on small devices
+  http.begin(wClientSecure, host, 443, path, true);
+  int httpCode = http.POST(reqData);
+  String httpResponse = http.getString();
   http.end();
-}
-
-
-void error(String message) {
-  message.replace(" ", "+");
-  WiFiClient wClient;
-  http.begin(wClient, String(IFTTT_ERROR_URL) + "?value1=" + message);
-  int httpCode = http.GET();
+  wClientSecure.stop();
+  httpResponse.replace("\n", "");
   if (httpCode == HTTP_CODE_OK) {
-    log("I/error : error notified via IFTTT");
+    log("I/notify: HTTP status code => " + String(httpCode) + ". HTTP response => " + httpResponse);
   } else {
-    log("E/notify: notification via IFTTT failed. HTTP status code => " + String(httpCode));
+    if (httpCode < 0) {
+      lastError = "HTTP error code => " + String(httpCode) + ". HTTP error => " + http.errorToString(httpCode);
+      log("E/notify: " + lastError);
+    } else {
+      lastError = "HTTP status code => " + String(httpCode) + ". HTTP response => " + httpResponse;
+      log("E/notify: " + lastError);
+    }
   }
-  http.end();
 }
 
 
